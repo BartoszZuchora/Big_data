@@ -128,11 +128,11 @@ kafka-down:
 
 kafka-topics:
 	@docker exec -it $$(docker ps -q --filter "name=kafka") \
-		kafka-topics --bootstrap-server localhost:9092 \
+		kafka-topics --bootstrap-server kafka:29092 \
 		--create --if-not-exists \
 		--topic $(KAFKA_IN) --partitions 1 --replication-factor 1
 	@docker exec -it $$(docker ps -q --filter "name=kafka") \
-		kafka-topics --bootstrap-server localhost:9092 \
+		kafka-topics --bootstrap-server kafka:29092 \
 		--create --if-not-exists \
 		--topic $(KAFKA_OUT) --partitions 1 --replication-factor 1
 

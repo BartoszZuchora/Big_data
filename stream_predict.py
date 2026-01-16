@@ -40,7 +40,7 @@ pred = model.transform(parsed)
 out = pred.select(
     "id",
     F.col("prediction").cast("int").alias("prediction"),
-    vector_to_array(F.col("probability")).getItem(1).alias("probability")  # <-- ZAMIANA
+    vector_to_array(F.col("probability")).getItem(1).alias("probability")
 )
 
 out_json = out.select(F.to_json(F.struct(*out.columns)).alias("value"))
