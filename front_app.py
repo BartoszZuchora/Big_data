@@ -2,7 +2,7 @@ import json
 import uuid
 from kafka import KafkaProducer, KafkaConsumer
 
-BOOTSTRAP = "localhost:9092"
+BOOTSTRAP = "localhost:29092"
 TOPIC_IN = "tmdb_features_in"
 TOPIC_OUT = "tmdb_predictions_out"
 

@@ -2,7 +2,7 @@ from pyspark.sql import SparkSession, functions as F, types as T
 from pyspark.ml import PipelineModel
 from pyspark.ml.functions import vector_to_array
 
-BOOTSTRAP = "localhost:9092"
+BOOTSTRAP = "localhost:29092"
 TOPIC_IN = "tmdb_features_in"
 TOPIC_OUT = "tmdb_predictions_out"
 
