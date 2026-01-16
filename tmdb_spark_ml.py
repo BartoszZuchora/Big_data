@@ -166,4 +166,4 @@ if __name__ == "__main__":
     # Podmień ścieżkę:
     # - lokalnie: "data/tmdb_10000.csv"
     # - HDFS: "hdfs:///data/tmdb/tmdb_10000.csv"
-    main(input_csv="tmdb_10000_movies.csv")
+    main(input_csv="data/tmdb_10000_movies.csv")
