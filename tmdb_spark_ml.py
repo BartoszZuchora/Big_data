@@ -1,12 +1,3 @@
-# tmdb_spark_ml.py
-# Poprawiona wersja:
-# - spójna z pipeline streamingowym (te same feature'y co w stream_predict.py)
-# - log1p na skośnych rozkładach
-# - StandardScaler dla LR
-# - wagi klas (class imbalance)
-# - AUTOMATYCZNE wyrzucanie numeric feature'ów, które na TRAIN są całe NULL/NaN (fix dla Imputer crash)
-# - opcjonalnie: traktowanie 0 jako brak danych dla budget/runtime (częste w TMDB)
-
 from __future__ import annotations
 
 from pyspark.sql import SparkSession

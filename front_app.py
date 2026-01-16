@@ -1,4 +1,3 @@
-# front_stream_csv.py
 import csv
 import json
 import random

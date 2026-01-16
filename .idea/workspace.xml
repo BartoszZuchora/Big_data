@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="44689204-2508-4b01-99d3-73e4ba4fe8c2" name="Changes" comment="update gitignore">
-      <change beforePath="$PROJECT_DIR$/front_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/front_app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/stream_predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/stream_predict.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,7 +72,7 @@
       <workItem from="1768598534056" duration="297000" />
       <workItem from="1768598839518" duration="20000" />
       <workItem from="1768598875937" duration="286000" />
-      <workItem from="1768603019875" duration="4024000" />
+      <workItem from="1768603019875" duration="4243000" />
     </task>
     <servers />
   </component>
@@ -90,7 +90,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="origin/main" />
+                        <option value="main" />
                       </list>
                     </value>
                   </entry>
