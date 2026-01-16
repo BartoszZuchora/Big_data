@@ -20,12 +20,36 @@ export PYSPARK_DRIVER_PYTHON := $(abspath $(PYTHON))
 .PHONY: help build python311 venv install run clean destroy check
 
 help:
-	@echo "Targets:"
-	@echo "  make build     - instaluje Python 3.11, tworzy venv, instaluje deps"
-	@echo "  make run       - uruchamia Spark job"
-	@echo "  make clean     - sprzątanie artefaktów"
-	@echo "  make destroy   - usuwa venv"
-	@echo "  make check     - sprawdza wersje Python/Spark"
+	@echo ""
+	@echo "========================================"
+	@echo "  TMDB Big Data – Makefile commands"
+	@echo "========================================"
+	@echo ""
+	@echo "SETUP:"
+	@echo "  make build        - install Python 3.11, create venv, install deps"
+	@echo "  make check        - show Python and Spark versions"
+	@echo ""
+	@echo "BATCH (Spark + MLlib):"
+	@echo "  make run          - run Spark batch job"
+	@echo "  make train        - train ML model and save it"
+	@echo ""
+	@echo "KAFKA:"
+	@echo "  make kafka-up     - start Kafka (Docker)"
+	@echo "  make kafka-topics - create Kafka topics"
+	@echo "  make kafka-down   - stop Kafka"
+	@echo ""
+	@echo "STREAMING:"
+	@echo "  make stream       - run Spark Structured Streaming"
+	@echo ""
+	@echo "FRONT:"
+	@echo "  make front        - run CLI front app (send + receive prediction)"
+	@echo ""
+	@echo "CLEANUP:"
+	@echo "  make clean        - remove temporary files"
+	@echo "  make destroy     - remove venv and all artifacts"
+	@echo ""
+	@echo "========================================"
+	@echo ""
 
 # ==========================
 # Python 3.11
@@ -118,7 +142,13 @@ train:
 
 # Spark Structured Streaming (Kafka -> ML -> Kafka)
 stream:
-	$(SPARK_SUBMIT) --packages $(SPARK_KAFKA_PKG) stream_predict.py
+	$(SPARK_SUBMIT) \
+	  --driver-memory 10g \
+	  --executor-memory 10g \
+	  --conf spark.executor.memoryOverhead=2048m \
+	  --conf spark.driver.memoryOverhead=2048m \
+	  --packages $(SPARK_KAFKA_PKG) \
+	  stream_predict.py
 
 # Front aplikacji (wysyła + odbiera)
 front:

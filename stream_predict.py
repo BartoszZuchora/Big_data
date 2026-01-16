@@ -1,5 +1,6 @@
 from pyspark.sql import SparkSession, functions as F, types as T
 from pyspark.ml import PipelineModel
+from pyspark.ml.functions import vector_to_array
 
 BOOTSTRAP = "localhost:9092"
 TOPIC_IN = "tmdb_features_in"
@@ -39,7 +40,7 @@ pred = model.transform(parsed)
 out = pred.select(
     "id",
     F.col("prediction").cast("int").alias("prediction"),
-    F.col("probability").getItem(1).alias("probability")
+    vector_to_array(F.col("probability")).getItem(1).alias("probability")  # <-- ZAMIANA
 )
 
 out_json = out.select(F.to_json(F.struct(*out.columns)).alias("value"))
