@@ -83,3 +83,43 @@ clean:
 
 destroy: clean
 	@rm -rf $(VENV_NAME)
+
+# ==========================
+# Kafka + Streaming + Front
+# ==========================
+
+KAFKA_IN=tmdb_features_in
+KAFKA_OUT=tmdb_predictions_out
+
+# Dopasowane do Spark 4.1.x
+SPARK_KAFKA_PKG ?= org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1
+
+.PHONY: kafka-up kafka-down kafka-topics train stream front
+
+kafka-up:
+	docker compose up -d
+
+kafka-down:
+	docker compose down
+
+kafka-topics:
+	@docker exec -it $$(docker ps -q --filter "name=kafka") \
+		kafka-topics --bootstrap-server localhost:9092 \
+		--create --if-not-exists \
+		--topic $(KAFKA_IN) --partitions 1 --replication-factor 1
+	@docker exec -it $$(docker ps -q --filter "name=kafka") \
+		kafka-topics --bootstrap-server localhost:9092 \
+		--create --if-not-exists \
+		--topic $(KAFKA_OUT) --partitions 1 --replication-factor 1
+
+# trening batch + zapis modelu
+train:
+	$(SPARK_SUBMIT) $(APP)
+
+# Spark Structured Streaming (Kafka -> ML -> Kafka)
+stream:
+	$(SPARK_SUBMIT) --packages $(SPARK_KAFKA_PKG) stream_predict.py
+
+# Front aplikacji (wysyła + odbiera)
+front:
+	$(PYTHON) front_app.py

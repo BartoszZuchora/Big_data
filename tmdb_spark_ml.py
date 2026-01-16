@@ -122,6 +122,12 @@ def main(input_csv: str,
     pipeline = Pipeline(stages=stages)
     model = pipeline.fit(train)
 
+    MODEL_PATH = "models/tmdb_lr"
+
+    # zapis pipeline model (ważne pod streaming)
+    model.write().overwrite().save(MODEL_PATH)
+    print(f"Saved model to: {MODEL_PATH}")
+
     preds = model.transform(test)
 
     # 8) Ewaluacja
