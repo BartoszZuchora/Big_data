@@ -26,16 +26,13 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.functions import vector_to_array
 
 
-# === KONFIG ===
 MODEL_PATH = "models/tmdb_lr"
 
-# MUSI PASOWAĆ DO STREAMINGU
 STREAM_NUMERIC = ["budget", "runtime", "popularity", "vote_count", "release_year"]
 STREAM_CATEGORICAL = ["original_language"]
 
-LABEL_THRESHOLD = 7.0  # vote_average >= 7.0 => label=1
+LABEL_THRESHOLD = 7.0
 
-# sanity limity (TMDB bywa brudne / outliery)
 MAX_RUNTIME = 400.0
 MAX_BUDGET = 5e8
 MAX_POPULARITY = 1e6
@@ -46,7 +43,7 @@ def build_spark(app_name: str = "TMDB-ETL-ML") -> SparkSession:
     return (
         SparkSession.builder
         .appName(app_name)
-        .enableHiveSupport()  # jak nie masz hive -> usuń tę linię
+        .enableHiveSupport()
         .getOrCreate()
     )
 
@@ -99,7 +96,6 @@ def main(
     spark = build_spark()
     spark.sparkContext.setLogLevel("WARN")
 
-    # 1) Wczytanie CSV
     df = (
         spark.read.option("header", "true")
         .option("inferSchema", "true")
@@ -109,7 +105,6 @@ def main(
     )
     df = normalize_columns(df)
 
-    # 2) Minimalny zestaw kolumn (nie wszystko w TMDB ma sens do ML)
     needed = [
         "release_date",
         "budget",
@@ -124,18 +119,15 @@ def main(
     existing = [c for c in needed if c in df.columns]
     df_sel = df.select(*existing)
 
-    # 3) Cast liczb
     for c in ["budget", "runtime", "popularity", "vote_average", "vote_count"]:
         if c in df_sel.columns:
             df_sel = df_sel.withColumn(c, F.col(c).cast(DoubleType()))
 
-    # release_year
     if "release_date" in df_sel.columns:
         df_sel = df_sel.withColumn("release_year", F.year(F.to_date("release_date")))
     else:
         df_sel = df_sel.withColumn("release_year", F.lit(None).cast("int"))
 
-    # 4) Czyszczenie: outliery + 0 jako brak danych dla budget/runtime/votes/popularity
     if "runtime" in df_sel.columns:
         df_sel = df_sel.withColumn("runtime", clean_nonneg_unknown0("runtime", MAX_RUNTIME))
     if "budget" in df_sel.columns:
@@ -145,14 +137,12 @@ def main(
     if "vote_count" in df_sel.columns:
         df_sel = df_sel.withColumn("vote_count", clean_nonneg_unknown0("vote_count", MAX_VOTE_COUNT))
 
-    # 5) Label
     df_ml = df_sel.filter(F.col("vote_average").isNotNull())
     df_ml = df_ml.withColumn(
         "label",
         F.when(F.col("vote_average") >= F.lit(LABEL_THRESHOLD), F.lit(1.0)).otherwise(F.lit(0.0)),
     )
 
-    # 6) Zapewnij spójność ze streamingiem (kolumny muszą istnieć)
     for c in STREAM_NUMERIC:
         if c not in df_ml.columns:
             df_ml = df_ml.withColumn(c, F.lit(None).cast(DoubleType()))
@@ -160,17 +150,13 @@ def main(
         if c not in df_ml.columns:
             df_ml = df_ml.withColumn(c, F.lit("unknown"))
 
-    # 7) Log1p features (dla skośnych rozkładów)
-    # log1p tylko dla >=0; NULL zostaje NULL
     df_ml = df_ml.withColumn("budget_log", F.log1p(F.col("budget")))
     df_ml = df_ml.withColumn("runtime_log", F.log1p(F.col("runtime")))
     df_ml = df_ml.withColumn("popularity_log", F.log1p(F.col("popularity")))
     df_ml = df_ml.withColumn("vote_count_log", F.log1p(F.col("vote_count")))
 
     numeric_features = ["budget_log", "runtime_log", "popularity_log", "vote_count_log", "release_year"]
-    categorical_features = ["original_language"]
 
-    # 8) Split
     train, test = df_ml.randomSplit([0.8, 0.2], seed=42)
 
     # 9) Wagi klas (imbalance)
@@ -183,7 +169,6 @@ def main(
     train = train.withColumn("weight", F.when(F.col("label") == 1.0, F.lit(pos_weight)).otherwise(F.lit(1.0)))
     test = test.withColumn("weight", F.lit(1.0))
 
-    # 10) FIX: usuń featury numeryczne, które na TRAIN są całe NULL/NaN (Imputer inaczej wywala)
     numeric_features = keep_nonempty_numeric(train, numeric_features)
     if not numeric_features:
         raise RuntimeError(
@@ -193,10 +178,8 @@ def main(
 
     print("Numeric features kept:", numeric_features)
 
-    # 11) Pipeline
     stages = []
 
-    # Imputer (tylko na tych co zostały)
     imp_out = [f"{c}_imp" for c in numeric_features]
     imputer = Imputer(inputCols=numeric_features, outputCols=imp_out)
     stages.append(imputer)
@@ -206,8 +189,6 @@ def main(
     scaler = StandardScaler(inputCol="num_vec", outputCol="num_scaled", withMean=True, withStd=True)
     stages += [num_vec, scaler]
 
-    # Kategoria -> index -> onehot
-    # (jeśli kiedyś dodasz więcej kategorii, zrób pętlę; tu tylko original_language)
     idx = StringIndexer(
         inputCol="original_language",
         outputCol="original_language_idx",
@@ -241,13 +222,11 @@ def main(
     pipeline = Pipeline(stages=stages)
     model = pipeline.fit(train)
 
-    # 12) zapis pipeline model (pod streaming)
     model.write().overwrite().save(MODEL_PATH)
     print(f"Saved model to: {MODEL_PATH}")
 
     preds = model.transform(test).cache()
 
-    # 13) Ewaluacja
     eval_roc = BinaryClassificationEvaluator(
         labelCol="label", rawPredictionCol="rawPrediction", metricName="areaUnderROC"
     )
@@ -261,7 +240,6 @@ def main(
     print(f"\nAUC ROC = {auc_roc:.4f}")
     print(f"AUC PR  = {auc_pr:.4f}\n")
 
-    # 14) Prosty sweep progu pod F1 (żeby nie fiksować się na 0.5)
     thresholds = [i / 100.0 for i in range(10, 91, 5)]
     best = (0.0, None, None, None)  # f1, thr, prec, rec
 
@@ -287,7 +265,6 @@ def main(
     print(f"Best threshold (by F1 sweep) = {thr:.2f}")
     print(f"Precision={prec:.3f}  Recall={rec:.3f}  F1={f1:.3f}\n")
 
-    # 15) Zapis ETL (parquet + hive)
     df_sel.write.mode("overwrite").parquet(output_parquet)
 
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {hive_db}")
@@ -299,7 +276,6 @@ def main(
         .saveAsTable(f"{hive_db}.{hive_table}")
     )
 
-    # 16) Szybka analiza
     spark.sql(f"""
         SELECT release_year, COUNT(*) AS n, AVG(vote_average) AS avg_rating
         FROM {hive_db}.{hive_table}

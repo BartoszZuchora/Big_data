@@ -26,11 +26,10 @@ consumer = KafkaConsumer(
     auto_offset_reset="latest",
     enable_auto_commit=True,
     value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-    consumer_timeout_ms=200,  # krótkie timeouty, żeby pętla nie wisiała
+    consumer_timeout_ms=200,
 )
 
 def parse_release_year(release_date: str):
-    # oczekiwany format: YYYY-MM-DD
     if not release_date:
         return None
     try:
@@ -62,11 +61,9 @@ def pick_random_features(rows):
     features = {
         "id": request_id,
 
-        # Te kolumny czasem nie istnieją w Twoim CSV – wtedy wyląduje None i model zrobi imputer
         "budget": to_float(row.get("budget")),
         "runtime": to_float(row.get("runtime")),
 
-        # Te u Ciebie są na pewno
         "popularity": to_float(row.get("popularity")),
         "vote_count": to_float(row.get("vote_count")),
 
@@ -74,7 +71,6 @@ def pick_random_features(rows):
         "original_language": (row.get("original_language") or "unknown"),
     }
 
-    # Dodatkowo do logów (nie wysyłamy do modelu)
     meta = {
         "tmdb_id": row.get("id"),
         "title": row.get("title"),
