@@ -1,2 +1,7 @@
 venv
 .venv
+.idea
+metastore_db
+spark-warehouse
+tmdb_clean.parquet
+derby.log
