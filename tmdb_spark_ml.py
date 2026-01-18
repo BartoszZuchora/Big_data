@@ -1,42 +1,30 @@
-from __future__ import annotations
+import os
 
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
+import pandas as pd
+from pyspark.sql import SparkSession, functions as F
 from pyspark.sql.types import DoubleType
-
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import (
     StringIndexer,
     OneHotEncoder,
     VectorAssembler,
     Imputer,
-    StandardScaler,
 )
-from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.classification import (
+    LogisticRegression,
+    RandomForestClassifier,
+    GBTClassifier,
+    LinearSVC,
+)
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-from pyspark.ml.functions import vector_to_array
+
+# ====== DOPASUJ ŚCIEŻKI ======
+INPUT_CSV = "data/tmdb_10000_movies.csv"
+MODEL_DIR = "models"  # katalog, do którego zapiszą się wszystkie modele
 
 
-MODEL_PATH = "models/tmdb_lr"
-
-STREAM_NUMERIC = ["budget", "runtime", "popularity", "vote_count", "release_year"]
-STREAM_CATEGORICAL = ["original_language"]
-
-LABEL_THRESHOLD = 7.0
-
-MAX_RUNTIME = 400.0
-MAX_BUDGET = 5e8
-MAX_POPULARITY = 1e6
-MAX_VOTE_COUNT = 5e6
-
-
-def build_spark(app_name: str = "TMDB-ETL-ML") -> SparkSession:
-    return (
-        SparkSession.builder
-        .appName(app_name)
-        .enableHiveSupport()
-        .getOrCreate()
-    )
+def build_spark(app_name: str = "TMDB-Batch-ETL-ML"):
+    return SparkSession.builder.appName(app_name).getOrCreate()
 
 
 def normalize_columns(df):
@@ -45,45 +33,117 @@ def normalize_columns(df):
     return df
 
 
-def clean_nonneg_unknown0(col: str, maxv: float):
-    """
-    Czyści kolumny numeryczne:
-    - NULL zostaje NULL
-    - wartości <= 0 traktujemy jako brak danych (często w TMDB 0 = unknown)
-    - outliery tniemy do maxv
-    """
-    return (
-        F.when(F.col(col).isNull(), None)
-        .when(F.col(col) <= 0, None)
-        .when(F.col(col) > F.lit(maxv), F.lit(maxv))
-        .otherwise(F.col(col))
+def safe_name(s: str) -> str:
+    return "".join(ch.lower() if ch.isalnum() else "_" for ch in s)
+
+
+def build_preprocess_stages(numeric_features, categorical_features):
+    stages = []
+
+    # Imputer dla numerycznych
+    numeric_imp = []
+    if numeric_features:
+        imputer = Imputer(
+            inputCols=numeric_features,
+            outputCols=[f"{c}_imp" for c in numeric_features],
+        )
+        stages.append(imputer)
+        numeric_imp = [f"{c}_imp" for c in numeric_features]
+
+    # OneHot dla kategorii
+    ohe_outputs = []
+    for c in categorical_features:
+        idx = StringIndexer(
+            inputCol=c,
+            outputCol=f"{c}_idx",
+            handleInvalid="keep",
+        )
+        ohe = OneHotEncoder(
+            inputCols=[f"{c}_idx"],
+            outputCols=[f"{c}_ohe"],
+        )
+        stages += [idx, ohe]
+        ohe_outputs.append(f"{c}_ohe")
+
+    feature_cols = numeric_imp + ohe_outputs
+    if not feature_cols:
+        raise RuntimeError("Brak cech po preprocessingu (feature_cols puste).")
+
+    assembler = VectorAssembler(
+        inputCols=feature_cols,
+        outputCol="features",
+        handleInvalid="keep",
+    )
+    stages.append(assembler)
+
+    return stages
+
+
+def confusion_and_metrics(preds):
+    cm = (
+        preds.groupBy("label", "prediction")
+        .count()
+        .orderBy("label", "prediction")
+    )
+    cm.show(truncate=False)
+
+    tp = preds.filter((F.col("label") == 1) & (F.col("prediction") == 1)).count()
+    tn = preds.filter((F.col("label") == 0) & (F.col("prediction") == 0)).count()
+    fp = preds.filter((F.col("label") == 0) & (F.col("prediction") == 1)).count()
+    fn = preds.filter((F.col("label") == 1) & (F.col("prediction") == 0)).count()
+
+    total = tp + tn + fp + fn
+    accuracy = (tp + tn) / total if total else 0.0
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+
+    return {
+        "tp": tp,
+        "tn": tn,
+        "fp": fp,
+        "fn": fn,
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+
+
+def evaluate_model(name, model, test):
+    preds = model.transform(test)
+
+    auc = None
+    try:
+        evaluator = BinaryClassificationEvaluator(
+            labelCol="label",
+            rawPredictionCol="rawPrediction",
+            metricName="areaUnderROC",
+        )
+        auc = evaluator.evaluate(preds)
+    except Exception as e:
+        print(f"[{name}] AUC niepoliczalne (np. LinearSVC): {e}")
+
+    print(f"\n=== {name} ===")
+    if auc is not None:
+        print(f"AUC ROC: {auc:.4f}")
+
+    print("Confusion matrix (label, prediction, count):")
+    metrics = confusion_and_metrics(preds)
+
+    print(
+        "Accuracy : {accuracy:.4f}\n"
+        "Precision: {precision:.4f}\n"
+        "Recall   : {recall:.4f}\n"
+        "F1-score : {f1:.4f}\n".format(**metrics)
     )
 
-
-def keep_nonempty_numeric(df, cols: list[str]) -> list[str]:
-    """
-    Zwraca tylko te kolumny numeryczne, które mają na df >=1 wartości nie-NULL i nie-NaN.
-    Fix dla:
-      SparkException: surrogate cannot be computed. All the values ... are Null, Nan ...
-    """
-    if not cols:
-        return []
-
-    agg_exprs = [
-        F.count(F.when(F.col(c).isNotNull() & (~F.isnan(F.col(c))), 1)).alias(c)
-        for c in cols
-    ]
-    counts = df.agg(*agg_exprs).collect()[0].asDict()
-    kept = [c for c in cols if counts.get(c, 0) > 0]
-    return kept
+    return auc, metrics
 
 
-def main(
-    input_csv: str,
-    output_parquet: str = "tmdb_clean.parquet",
-    hive_db: str = "bigdata",
-    hive_table: str = "tmdb_movies_clean",
-):
+def main():
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
     spark = build_spark()
     spark.sparkContext.setLogLevel("WARN")
 
@@ -92,192 +152,157 @@ def main(
         .option("inferSchema", "true")
         .option("multiLine", "true")
         .option("escape", "\"")
-        .csv(input_csv)
+        .csv(INPUT_CSV)
     )
     df = normalize_columns(df)
 
-    needed = [
+    expected = [
+        "title",
         "release_date",
         "budget",
+        "revenue",
         "runtime",
         "popularity",
         "vote_average",
         "vote_count",
         "original_language",
-        "id",
-        "title",
     ]
-    existing = [c for c in needed if c in df.columns]
+    existing = [c for c in expected if c in df.columns]
     df_sel = df.select(*existing)
 
-    for c in ["budget", "runtime", "popularity", "vote_average", "vote_count"]:
+    # Casty numeryczne
+    for c in ["budget", "revenue", "runtime", "popularity", "vote_average", "vote_count"]:
         if c in df_sel.columns:
             df_sel = df_sel.withColumn(c, F.col(c).cast(DoubleType()))
 
+    # Feature engineering
     if "release_date" in df_sel.columns:
-        df_sel = df_sel.withColumn("release_year", F.year(F.to_date("release_date")))
-    else:
-        df_sel = df_sel.withColumn("release_year", F.lit(None).cast("int"))
+        df_sel = df_sel.withColumn(
+            "release_year",
+            F.year(F.to_date("release_date")),
+        )
 
-    if "runtime" in df_sel.columns:
-        df_sel = df_sel.withColumn("runtime", clean_nonneg_unknown0("runtime", MAX_RUNTIME))
-    if "budget" in df_sel.columns:
-        df_sel = df_sel.withColumn("budget", clean_nonneg_unknown0("budget", MAX_BUDGET))
-    if "popularity" in df_sel.columns:
-        df_sel = df_sel.withColumn("popularity", clean_nonneg_unknown0("popularity", MAX_POPULARITY))
-    if "vote_count" in df_sel.columns:
-        df_sel = df_sel.withColumn("vote_count", clean_nonneg_unknown0("vote_count", MAX_VOTE_COUNT))
+    if "budget" in df_sel.columns and "revenue" in df_sel.columns:
+        df_sel = df_sel.withColumn("profit", F.col("revenue") - F.col("budget"))
+        df_sel = df_sel.withColumn(
+            "roi",
+            F.when(F.col("budget") > 0, F.col("profit") / F.col("budget")).otherwise(
+                F.lit(None)
+            ),
+        )
+
+    # ====== LABEL (hit/non-hit) ======
+    if "vote_average" not in df_sel.columns:
+        raise RuntimeError("Brak kolumny vote_average – nie mogę zbudować label.")
 
     df_ml = df_sel.filter(F.col("vote_average").isNotNull())
     df_ml = df_ml.withColumn(
         "label",
-        F.when(F.col("vote_average") >= F.lit(LABEL_THRESHOLD), F.lit(1.0)).otherwise(F.lit(0.0)),
+        F.when(F.col("vote_average") >= F.lit(7.0), 1.0).otherwise(0.0),
     )
-
-    for c in STREAM_NUMERIC:
-        if c not in df_ml.columns:
-            df_ml = df_ml.withColumn(c, F.lit(None).cast(DoubleType()))
-    for c in STREAM_CATEGORICAL:
-        if c not in df_ml.columns:
-            df_ml = df_ml.withColumn(c, F.lit("unknown"))
-
-    df_ml = df_ml.withColumn("budget_log", F.log1p(F.col("budget")))
-    df_ml = df_ml.withColumn("runtime_log", F.log1p(F.col("runtime")))
-    df_ml = df_ml.withColumn("popularity_log", F.log1p(F.col("popularity")))
-    df_ml = df_ml.withColumn("vote_count_log", F.log1p(F.col("vote_count")))
-
-    numeric_features = ["budget_log", "runtime_log", "popularity_log", "vote_count_log", "release_year"]
 
     train, test = df_ml.randomSplit([0.8, 0.2], seed=42)
 
-    # 9) Wagi klas (imbalance)
-    counts = train.groupBy("label").count().collect()
-    cdict = {float(r["label"]): float(r["count"]) for r in counts}
-    n0 = cdict.get(0.0, 1.0)
-    n1 = cdict.get(1.0, 1.0)
-    pos_weight = (n0 / n1) if n1 > 0 else 1.0
+    categorical = []
+    if "original_language" in df_ml.columns:
+        categorical.append("original_language")
 
-    train = train.withColumn("weight", F.when(F.col("label") == 1.0, F.lit(pos_weight)).otherwise(F.lit(1.0)))
-    test = test.withColumn("weight", F.lit(1.0))
+    numeric_features = [
+        c
+        for c in [
+            "budget",
+            "revenue",
+            "runtime",
+            "popularity",
+            "vote_count",
+            "release_year",
+            "profit",
+            "roi",
+        ]
+        if c in df_ml.columns
+    ]
 
-    numeric_features = keep_nonempty_numeric(train, numeric_features)
-    if not numeric_features:
-        raise RuntimeError(
-            "Brak sensownych numeric features po czyszczeniu (wszystko NULL/NaN). "
-            "Sprawdź dane wejściowe / casty kolumn."
+    preprocess_stages = build_preprocess_stages(numeric_features, categorical)
+
+    # ====== MODELE ======
+    models = [
+        (
+            "LogisticRegression",
+            LogisticRegression(
+                featuresCol="features",
+                labelCol="label",
+                maxIter=100,
+                regParam=0.1,
+                elasticNetParam=0.0,
+            ),
+        ),
+        (
+            "RandomForest",
+            RandomForestClassifier(
+                featuresCol="features",
+                labelCol="label",
+                numTrees=300,
+                maxDepth=10,
+                seed=42,
+            ),
+        ),
+        (
+            "GBTClassifier",
+            GBTClassifier(
+                featuresCol="features",
+                labelCol="label",
+                maxIter=150,
+                maxDepth=5,
+                seed=42,
+            ),
+        ),
+        (
+            "LinearSVC",
+            LinearSVC(
+                featuresCol="features",
+                labelCol="label",
+                maxIter=200,
+                regParam=0.1,
+            ),
+        ),
+    ]
+
+    results = []
+
+    for name, estimator in models:
+        pipeline = Pipeline(stages=preprocess_stages + [estimator])
+        fitted = pipeline.fit(train)
+
+        # Zapis każdego modelu
+        model_path = os.path.join(MODEL_DIR, f"tmdb_{safe_name(name)}")
+        fitted.write().overwrite().save(model_path)
+        print(f"Saved model {name} to: {model_path}")
+
+        # Ewaluacja
+        auc, metrics = evaluate_model(name, fitted, test)
+        results.append(
+            {
+                "model": name,
+                "model_path": model_path,
+                "auc": float(auc) if auc is not None else None,
+                "accuracy": metrics["accuracy"],
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "f1": metrics["f1"],
+            }
         )
 
-    print("Numeric features kept:", numeric_features)
+    # Zapis tabeli wyników
+    results_path = os.path.join(MODEL_DIR, "tmdb_model_results.csv")
+    pd.DataFrame(results).to_csv(results_path, index=False)
+    print(f"\nSaved results table to: {results_path}\n")
 
-    stages = []
-
-    imp_out = [f"{c}_imp" for c in numeric_features]
-    imputer = Imputer(inputCols=numeric_features, outputCols=imp_out)
-    stages.append(imputer)
-
-    # Vector + StandardScaler
-    num_vec = VectorAssembler(inputCols=imp_out, outputCol="num_vec", handleInvalid="keep")
-    scaler = StandardScaler(inputCol="num_vec", outputCol="num_scaled", withMean=True, withStd=True)
-    stages += [num_vec, scaler]
-
-    idx = StringIndexer(
-        inputCol="original_language",
-        outputCol="original_language_idx",
-        handleInvalid="keep",
-    )
-    ohe = OneHotEncoder(
-        inputCols=["original_language_idx"],
-        outputCols=["original_language_ohe"],
-    )
-    stages += [idx, ohe]
-
-    # Final features
-    features = VectorAssembler(
-        inputCols=["num_scaled", "original_language_ohe"],
-        outputCol="features",
-        handleInvalid="keep",
-    )
-    stages.append(features)
-
-    # LR
-    lr = LogisticRegression(
-        featuresCol="features",
-        labelCol="label",
-        weightCol="weight",
-        maxIter=200,
-        regParam=0.03,
-        elasticNetParam=0.0,  # L2
-    )
-    stages.append(lr)
-
-    pipeline = Pipeline(stages=stages)
-    model = pipeline.fit(train)
-
-    model.write().overwrite().save(MODEL_PATH)
-    print(f"Saved model to: {MODEL_PATH}")
-
-    preds = model.transform(test).cache()
-
-    eval_roc = BinaryClassificationEvaluator(
-        labelCol="label", rawPredictionCol="rawPrediction", metricName="areaUnderROC"
-    )
-    eval_pr = BinaryClassificationEvaluator(
-        labelCol="label", rawPredictionCol="rawPrediction", metricName="areaUnderPR"
-    )
-
-    auc_roc = eval_roc.evaluate(preds)
-    auc_pr = eval_pr.evaluate(preds)
-
-    print(f"\nAUC ROC = {auc_roc:.4f}")
-    print(f"AUC PR  = {auc_pr:.4f}\n")
-
-    thresholds = [i / 100.0 for i in range(10, 91, 5)]
-    best = (0.0, None, None, None)  # f1, thr, prec, rec
-
-    scored = preds.select(
-        F.col("label").cast("double").alias("label"),
-        vector_to_array(F.col("probability")).getItem(1).alias("p1"),
-    ).cache()
-
-    for thr in thresholds:
-        yhat = scored.withColumn("pred", F.when(F.col("p1") >= F.lit(thr), 1.0).otherwise(0.0))
-        tp = yhat.filter((F.col("pred") == 1.0) & (F.col("label") == 1.0)).count()
-        fp = yhat.filter((F.col("pred") == 1.0) & (F.col("label") == 0.0)).count()
-        fn = yhat.filter((F.col("pred") == 0.0) & (F.col("label") == 1.0)).count()
-
-        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) > 0 else 0.0
-
-        if f1 > best[0]:
-            best = (f1, thr, prec, rec)
-
-    f1, thr, prec, rec = best
-    print(f"Best threshold (by F1 sweep) = {thr:.2f}")
-    print(f"Precision={prec:.3f}  Recall={rec:.3f}  F1={f1:.3f}\n")
-
-    df_sel.write.mode("overwrite").parquet(output_parquet)
-
-    spark.sql(f"CREATE DATABASE IF NOT EXISTS {hive_db}")
-    spark.sql(f"USE {hive_db}")
-
-    (
-        df_sel.write.mode("overwrite")
-        .format("parquet")
-        .saveAsTable(f"{hive_db}.{hive_table}")
-    )
-
-    spark.sql(f"""
-        SELECT release_year, COUNT(*) AS n, AVG(vote_average) AS avg_rating
-        FROM {hive_db}.{hive_table}
-        WHERE release_year IS NOT NULL
-        GROUP BY release_year
-        ORDER BY release_year DESC
-        LIMIT 20
-    """).show(20, truncate=False)
+    # (opcjonalnie) zapis danych po ETL
+    df_sel.write.mode("overwrite").parquet("tmdb_clean.parquet")
+    print("Saved cleaned data to tmdb_clean.parquet")
 
     spark.stop()
 
 
 if __name__ == "__main__":
-    main(input_csv="data/tmdb_10000_movies.csv")
+    main()
