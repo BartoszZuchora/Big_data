@@ -5,7 +5,128 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="44689204-2508-4b01-99d3-73e4ba4fe8c2" name="Changes" comment="update gitignore">
-      <change beforePath="$PROJECT_DIR$/stream_predict.py" beforeDir="false" afterPath="$PROJECT_DIR$/stream_predict.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/.metadata.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.0.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.1.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.10.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.11.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.12.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.13.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.14.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.15.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.2.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.3.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.4.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.5.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.6.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.7.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.8.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/.9.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/0" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/10" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/11" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/12" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/13" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/14" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/15" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/2" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/5" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/6" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/7" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/8" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/commits/9" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/metadata" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.0.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.1.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.10.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.11.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.12.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.13.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.14.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.15.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.2.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.3.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.4.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.5.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.6.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.7.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.8.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/.9.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/0" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/1" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/10" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/11" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/12" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/13" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/14" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/15" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/2" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/5" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/6" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/7" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/8" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/offsets/9" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/sources/0/.0.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/checkpoints/tmdb_stream_predict/sources/0/0" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/front_app.py" beforeDir="false" afterPath="$PROJECT_DIR$/front_app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/metadata/.part-00000-5093b4c1-942b-44ae-96f9-a8782025258d-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/metadata/part-00000-5093b4c1-942b-44ae-96f9-a8782025258d-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/data/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/data/.part-00000-d1dc1024-7e29-46ff-9a63-52e7be291b16-c000.snappy.parquet.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/data/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/data/part-00000-d1dc1024-7e29-46ff-9a63-52e7be291b16-c000.snappy.parquet" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/metadata/.part-00000-39c077c9-583f-4768-983f-7d99b62c16a8-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/0_Imputer_aad34be5bdfd/metadata/part-00000-39c077c9-583f-4768-983f-7d99b62c16a8-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/1_VectorAssembler_fb4b303e5d28/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/1_VectorAssembler_fb4b303e5d28/metadata/.part-00000-43310d28-e9b7-4848-8d7b-fa2f3509cdb7-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/1_VectorAssembler_fb4b303e5d28/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/1_VectorAssembler_fb4b303e5d28/metadata/part-00000-43310d28-e9b7-4848-8d7b-fa2f3509cdb7-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/data/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/data/.part-00000-77f9a7f7-7ccd-4dbe-9933-6a7fb7795f01-c000.snappy.parquet.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/data/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/data/part-00000-77f9a7f7-7ccd-4dbe-9933-6a7fb7795f01-c000.snappy.parquet" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/metadata/.part-00000-4b742957-0f9d-4610-be5b-f0e3ac033249-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/2_StandardScaler_62e275b0f5ce/metadata/part-00000-4b742957-0f9d-4610-be5b-f0e3ac033249-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/data/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/data/.part-00000-fec76de2-7f47-43b1-a033-3180e40020f1-c000.snappy.parquet.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/data/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/data/part-00000-fec76de2-7f47-43b1-a033-3180e40020f1-c000.snappy.parquet" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/metadata/.part-00000-820a1b85-aa51-4974-8e39-2c96c3dc03cf-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/3_StringIndexer_925161aab5c0/metadata/part-00000-820a1b85-aa51-4974-8e39-2c96c3dc03cf-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/data/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/data/.part-00000-7dab917f-9b06-450a-a903-344252ff1cac-c000.snappy.parquet.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/data/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/data/part-00000-7dab917f-9b06-450a-a903-344252ff1cac-c000.snappy.parquet" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/metadata/.part-00000-b7b8bb2f-b0f3-4cad-9e5a-b2a64e1e3f0b-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/4_OneHotEncoder_e3de6177b1df/metadata/part-00000-b7b8bb2f-b0f3-4cad-9e5a-b2a64e1e3f0b-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/5_VectorAssembler_ca24f68059e7/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/5_VectorAssembler_ca24f68059e7/metadata/.part-00000-978ae4fb-d83e-4def-8e3b-f3b12eba0f1c-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/5_VectorAssembler_ca24f68059e7/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/5_VectorAssembler_ca24f68059e7/metadata/part-00000-978ae4fb-d83e-4def-8e3b-f3b12eba0f1c-c000.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/data/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/data/.part-00000-8929db90-5b30-42bf-828a-dafc62933144-c000.snappy.parquet.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/data/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/data/part-00000-8929db90-5b30-42bf-828a-dafc62933144-c000.snappy.parquet" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/metadata/._SUCCESS.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/metadata/.part-00000-7d586481-aef2-4619-b522-f2e240af15a4-c000.txt.crc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/metadata/_SUCCESS" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/tmdb_lr/stages/6_LogisticRegression_34dc7e45178a/metadata/part-00000-7d586481-aef2-4619-b522-f2e240af15a4-c000.txt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,7 +193,8 @@
       <workItem from="1768598534056" duration="297000" />
       <workItem from="1768598839518" duration="20000" />
       <workItem from="1768598875937" duration="286000" />
-      <workItem from="1768603019875" duration="4243000" />
+      <workItem from="1768603019875" duration="4476000" />
+      <workItem from="1768735520418" duration="862000" />
     </task>
     <servers />
   </component>

@@ -60,9 +60,6 @@ def pick_random_features(rows):
     features = {
         "id": request_id,
 
-        "budget": to_float(row.get("budget")),
-        "runtime": to_float(row.get("runtime")),
-
         "popularity": to_float(row.get("popularity")),
         "vote_count": to_float(row.get("vote_count")),
 
@@ -99,7 +96,7 @@ def main():
     while True:
         features, meta = pick_random_features(rows)
 
-        print("\n➡️ SEND", datetime.now().strftime("%H:%M:%S"))
+        print("\nData wysłania: ", datetime.now().strftime("%H:%M:%S"))
         print("meta:", meta)
         print("features:", features)
 
@@ -108,9 +105,9 @@ def main():
 
         pred = poll_predictions(features["id"], max_wait_s=2.0)
         if pred:
-            print("✅ PRED:", pred)
+            print("Wynik predykcji: ", pred)
         else:
-            print("⚠️ Brak predykcji w 2s (czy Spark streaming działa?)")
+            print("Brak predykcji w 2s")
 
         time.sleep(SEND_EVERY_S)
 
