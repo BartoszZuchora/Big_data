@@ -96,6 +96,9 @@ os.makedirs(CHECKPOINT_OUT, exist_ok=True)
 os.makedirs(CHECKPOINT_METRICS, exist_ok=True)
 
 models = load_models(MODEL_DIR)
+# ALLOW = {"tmdb_tuned_rf", "tmdb_tuned_lr"}
+# models = [(n, m) for (n, m) in models if n in ALLOW]
+# print("Using models:", [n for n, _ in models])
 print("Loaded models:")
 for n, _ in models:
     print(" -", n)
@@ -184,10 +187,11 @@ for d in pred_dfs[1:]:
 # bundle predictions per (id,event_ts,processed_ts) to one JSON
 bundled = (
     union_preds
-    .groupBy("id", "event_ts", "processed_ts")
+    .groupBy("id", "event_ts")
     .agg(
         F.collect_list("pred_struct").alias("predictions"),
-        F.max("latency_ms_calc").alias("latency_ms")  # jedna wartość
+        F.max("processed_ts").alias("processed_ts"),
+        F.max("latency_ms_calc").alias("latency_ms")
     )
     .select(
         F.to_json(
@@ -208,7 +212,7 @@ query_out = (
     .option("topic", TOPIC_OUT)
     .option("checkpointLocation", CHECKPOINT_OUT)
     .outputMode("update")
-    .trigger(processingTime="2 seconds")
+    .trigger(processingTime="10 seconds")
     .start()
 )
 

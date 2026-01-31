@@ -58,6 +58,8 @@ def to_bool(x):
         return True
     if s in ["false", "0", "f", "no"]:
         return False
+    if s in ["", "none", "null"]:
+        return None
     return None
 
 
@@ -157,7 +159,7 @@ def main():
         producer.send(TOPIC_IN, payload)
         producer.flush()
 
-        bundle = poll_prediction_bundle(payload["id"], max_wait_s=5.0)
+        bundle = poll_prediction_bundle(payload["id"], max_wait_s=20.0)
         if bundle:
             print_bundle(bundle)
         else:
