@@ -1,8 +1,5 @@
 SHELL := /bin/bash
 
-# ==========================
-# Konfiguracja
-# ==========================
 VENV_NAME := .venv
 PYTHON311 := /opt/homebrew/bin/python3.11
 PYTHON := $(VENV_NAME)/bin/python
@@ -14,10 +11,15 @@ SPARK_SUBMIT ?= spark-submit
 export PYSPARK_PYTHON := $(abspath $(PYTHON))
 export PYSPARK_DRIVER_PYTHON := $(abspath $(PYTHON))
 
-# ==========================
-# PHONY
-# ==========================
-.PHONY: help build python311 venv install run clean destroy check
+KAFKA_IN=tmdb_features_in
+KAFKA_OUT=tmdb_predictions_out
+KAFKA_METRICS=tmdb_stream_metrics
+
+# Dopasowane do Spark 4.1.x
+SPARK_KAFKA_PKG ?= org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1
+
+.PHONY: help python311 venv install build check clean destroy \
+        kafka-up kafka-down kafka-topics train stream front
 
 help:
 	@echo ""
@@ -26,12 +28,11 @@ help:
 	@echo "========================================"
 	@echo ""
 	@echo "SETUP:"
-	@echo "  make build        - install Python 3.11, create venv, install deps"
+	@echo "  make build        - create venv + install deps"
 	@echo "  make check        - show Python and Spark versions"
 	@echo ""
 	@echo "BATCH (Spark + MLlib):"
-	@echo "  make run          - run Spark batch job"
-	@echo "  make train        - train ML model and save it"
+	@echo "  make train        - run batch ETL+ML, save models + results"
 	@echo ""
 	@echo "KAFKA:"
 	@echo "  make kafka-up     - start Kafka (Docker)"
@@ -39,21 +40,18 @@ help:
 	@echo "  make kafka-down   - stop Kafka"
 	@echo ""
 	@echo "STREAMING:"
-	@echo "  make stream       - run Spark Structured Streaming"
+	@echo "  make stream       - run Spark Structured Streaming (Kafka->ML->Kafka)"
 	@echo ""
 	@echo "FRONT:"
-	@echo "  make front        - run CLI front app (send + receive prediction)"
+	@echo "  make front        - run producer+consumer CLI"
 	@echo ""
 	@echo "CLEANUP:"
 	@echo "  make clean        - remove temporary files"
-	@echo "  make destroy     - remove venv and all artifacts"
+	@echo "  make destroy      - remove venv and artifacts"
 	@echo ""
 	@echo "========================================"
 	@echo ""
 
-# ==========================
-# Python 3.11
-# ==========================
 python311:
 	@if [ ! -x "$(PYTHON311)" ]; then \
 		echo ">>> Python 3.11 not found. Installing via Homebrew..."; \
@@ -62,9 +60,6 @@ python311:
 		echo ">>> Python 3.11 already installed"; \
 	fi
 
-# ==========================
-# Virtualenv
-# ==========================
 venv: python311
 	@if [ ! -d "$(VENV_NAME)" ]; then \
 		echo ">>> Creating venv with Python 3.11"; \
@@ -73,25 +68,12 @@ venv: python311
 		echo ">>> venv already exists"; \
 	fi
 
-# ==========================
-# Dependencies
-# ==========================
 install: venv
 	@$(PIP) install --upgrade pip
 	@$(PIP) install -r requirements.txt
 
 build: install
 
-# ==========================
-# Run Spark
-# ==========================
-run:
-	@echo ">>> Using PYSPARK_PYTHON=$(PYSPARK_PYTHON)"
-	@$(SPARK_SUBMIT) $(APP)
-
-# ==========================
-# Checks
-# ==========================
 check:
 	@echo "Python (venv):"
 	@$(PYTHON) --version
@@ -99,26 +81,11 @@ check:
 	@echo "Spark:"
 	@$(SPARK_SUBMIT) --version || true
 
-# ==========================
-# Cleanup
-# ==========================
 clean:
-	@rm -rf __pycache__ *.parquet metastore_db spark-warehouse derby.log 2>/dev/null || true
+	@rm -rf __pycache__ *.parquet metastore_db spark-warehouse derby.log checkpoints 2>/dev/null || true
 
 destroy: clean
-	@rm -rf $(VENV_NAME)
-
-# ==========================
-# Kafka + Streaming + Front
-# ==========================
-
-KAFKA_IN=tmdb_features_in
-KAFKA_OUT=tmdb_predictions_out
-
-# Dopasowane do Spark 4.1.x
-SPARK_KAFKA_PKG ?= org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1
-
-.PHONY: kafka-up kafka-down kafka-topics train stream front
+	@rm -rf $(VENV_NAME) models tmdb_clean.parquet 2>/dev/null || true
 
 kafka-up:
 	docker compose up -d
@@ -128,28 +95,28 @@ kafka-down:
 
 kafka-topics:
 	@docker exec -it $$(docker ps -q --filter "name=kafka") \
-		kafka-topics --bootstrap-server kafka:29092 \
-		--create --if-not-exists \
-		--topic $(KAFKA_IN) --partitions 1 --replication-factor 1
+		kafka-topics --bootstrap-server kafka:9092 \
+		--create --if-not-exists --topic $(KAFKA_IN) --partitions 1 --replication-factor 1
 	@docker exec -it $$(docker ps -q --filter "name=kafka") \
-		kafka-topics --bootstrap-server kafka:29092 \
-		--create --if-not-exists \
-		--topic $(KAFKA_OUT) --partitions 1 --replication-factor 1
+		kafka-topics --bootstrap-server kafka:9092 \
+		--create --if-not-exists --topic $(KAFKA_OUT) --partitions 1 --replication-factor 1
+	@docker exec -it $$(docker ps -q --filter "name=kafka") \
+		kafka-topics --bootstrap-server kafka:9092 \
+		--create --if-not-exists --topic $(KAFKA_METRICS) --partitions 1 --replication-factor 1
 
-# trening batch + zapis modelu
 train:
-	$(SPARK_SUBMIT) $(APP)
+	@echo ">>> Using PYSPARK_PYTHON=$(PYSPARK_PYTHON)"
+	@$(SPARK_SUBMIT) $(APP)
 
-# Spark Structured Streaming (Kafka -> ML -> Kafka)
 stream:
+	@echo ">>> Running Structured Streaming (Kafka->Spark->Kafka)"
 	$(SPARK_SUBMIT) \
-	  --driver-memory 10g \
-	  --executor-memory 10g \
-	  --conf spark.executor.memoryOverhead=2048m \
-	  --conf spark.driver.memoryOverhead=2048m \
+	  --driver-memory 6g \
+	  --executor-memory 6g \
+	  --conf spark.executor.memoryOverhead=1024m \
+	  --conf spark.driver.memoryOverhead=1024m \
 	  --packages $(SPARK_KAFKA_PKG) \
 	  stream_predict.py
 
-# Front aplikacji (wysyła + odbiera)
 front:
 	$(PYTHON) front_app.py

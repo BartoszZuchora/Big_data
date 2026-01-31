@@ -1,29 +1,27 @@
 import os
-
+import ast
 import pandas as pd
+
 from pyspark.sql import SparkSession, functions as F
-from pyspark.sql.types import DoubleType
+from pyspark.sql.types import DoubleType, IntegerType, BooleanType
+
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import (
-    StringIndexer,
-    OneHotEncoder,
-    VectorAssembler,
-    Imputer,
+    StringIndexer, OneHotEncoder, VectorAssembler, Imputer,
+    StandardScaler, PCA
 )
-from pyspark.ml.classification import (
-    LogisticRegression,
-    RandomForestClassifier,
-    GBTClassifier,
-    LinearSVC,
-)
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, GBTClassifier
+from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
-# ====== DOPASUJ ŚCIEŻKI ======
 INPUT_CSV = "data/tmdb_10000_movies.csv"
-MODEL_DIR = "models"  # katalog, do którego zapiszą się wszystkie modele
+MODEL_DIR = "models"
+OUT_CLEAN = "tmdb_clean.parquet"
+
+LABEL_THRESHOLD = 7.0  # hit jeśli vote_average >= 7.0
 
 
-def build_spark(app_name: str = "TMDB-Batch-ETL-ML"):
+def build_spark(app_name="TMDB-Batch-ETL-ML"):
     return SparkSession.builder.appName(app_name).getOrCreate()
 
 
@@ -37,108 +35,55 @@ def safe_name(s: str) -> str:
     return "".join(ch.lower() if ch.isalnum() else "_" for ch in s)
 
 
-def build_preprocess_stages(numeric_features, categorical_features):
-    stages = []
-
-    # Imputer dla numerycznych
-    numeric_imp = []
-    if numeric_features:
-        imputer = Imputer(
-            inputCols=numeric_features,
-            outputCols=[f"{c}_imp" for c in numeric_features],
-        )
-        stages.append(imputer)
-        numeric_imp = [f"{c}_imp" for c in numeric_features]
-
-    # OneHot dla kategorii
-    ohe_outputs = []
-    for c in categorical_features:
-        idx = StringIndexer(
-            inputCol=c,
-            outputCol=f"{c}_idx",
-            handleInvalid="keep",
-        )
-        ohe = OneHotEncoder(
-            inputCols=[f"{c}_idx"],
-            outputCols=[f"{c}_ohe"],
-        )
-        stages += [idx, ohe]
-        ohe_outputs.append(f"{c}_ohe")
-
-    feature_cols = numeric_imp + ohe_outputs
-    if not feature_cols:
-        raise RuntimeError("Brak cech po preprocessingu (feature_cols puste).")
-
-    assembler = VectorAssembler(
-        inputCols=feature_cols,
-        outputCol="features",
-        handleInvalid="keep",
-    )
-    stages.append(assembler)
-
-    return stages
+@F.udf(IntegerType())
+def genre_count_udf(s):
+    if s is None:
+        return None
+    try:
+        arr = ast.literal_eval(s)
+        return int(len(arr)) if isinstance(arr, list) else None
+    except Exception:
+        return None
 
 
-def confusion_and_metrics(preds):
-    cm = (
-        preds.groupBy("label", "prediction")
-        .count()
-        .orderBy("label", "prediction")
-    )
+def evaluate_predictions(preds, name: str):
+    cm = preds.groupBy("label", "prediction").count().orderBy("label", "prediction")
+    print(f"\n[{name}] Confusion matrix (label, prediction, count):")
     cm.show(truncate=False)
 
-    tp = preds.filter((F.col("label") == 1) & (F.col("prediction") == 1)).count()
-    tn = preds.filter((F.col("label") == 0) & (F.col("prediction") == 0)).count()
-    fp = preds.filter((F.col("label") == 0) & (F.col("prediction") == 1)).count()
-    fn = preds.filter((F.col("label") == 1) & (F.col("prediction") == 0)).count()
+    acc_eval = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
+    f1_eval  = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="f1")
+    pr_eval  = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
+    rc_eval  = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedRecall")
 
-    total = tp + tn + fp + fn
-    accuracy = (tp + tn) / total if total else 0.0
-    precision = tp / (tp + fp) if (tp + fp) else 0.0
-    recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-
-    return {
-        "tp": tp,
-        "tn": tn,
-        "fp": fp,
-        "fn": fn,
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-    }
-
-
-def evaluate_model(name, model, test):
-    preds = model.transform(test)
+    accuracy = acc_eval.evaluate(preds)
+    f1 = f1_eval.evaluate(preds)
+    precision = pr_eval.evaluate(preds)
+    recall = rc_eval.evaluate(preds)
 
     auc = None
     try:
-        evaluator = BinaryClassificationEvaluator(
-            labelCol="label",
-            rawPredictionCol="rawPrediction",
-            metricName="areaUnderROC",
-        )
-        auc = evaluator.evaluate(preds)
+        auc_eval = BinaryClassificationEvaluator(labelCol="label", rawPredictionCol="rawPrediction", metricName="areaUnderROC")
+        auc = auc_eval.evaluate(preds)
     except Exception as e:
-        print(f"[{name}] AUC niepoliczalne (np. LinearSVC): {e}")
+        print(f"[{name}] AUC niepoliczalne: {e}")
 
-    print(f"\n=== {name} ===")
-    if auc is not None:
-        print(f"AUC ROC: {auc:.4f}")
+    out = {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1, "auc": auc}
+    print(f"[{name}] metrics:", out)
+    return out
 
-    print("Confusion matrix (label, prediction, count):")
-    metrics = confusion_and_metrics(preds)
 
-    print(
-        "Accuracy : {accuracy:.4f}\n"
-        "Precision: {precision:.4f}\n"
-        "Recall   : {recall:.4f}\n"
-        "F1-score : {f1:.4f}\n".format(**metrics)
-    )
-
-    return auc, metrics
+def get_feature_names(df_with_features):
+    # Nazwy cech z metadanych ML
+    try:
+        attrs = df_with_features.schema["features"].metadata["ml_attr"]["attrs"]
+        names = []
+        for k in ["binary", "numeric"]:
+            if k in attrs:
+                names += [a["name"] for a in attrs[k]]
+        return names
+    except Exception:
+        return []
 
 
 def main():
@@ -156,150 +101,178 @@ def main():
     )
     df = normalize_columns(df)
 
-    expected = [
-        "title",
-        "release_date",
-        "budget",
-        "revenue",
-        "runtime",
-        "popularity",
-        "vote_average",
-        "vote_count",
+    # minimalny zestaw potrzebnych kolumn (reszta może istnieć, ale nie jest wymagana)
+    cols = [
+        "id", "title", "overview", "genre_ids",
+        "adult", "video",
         "original_language",
+        "popularity", "vote_average", "vote_count",
+        "release_date",
     ]
-    existing = [c for c in expected if c in df.columns]
-    df_sel = df.select(*existing)
+    cols = [c for c in cols if c in df.columns]
+    df_sel = df.select(*cols)
 
-    # Casty numeryczne
-    for c in ["budget", "revenue", "runtime", "popularity", "vote_average", "vote_count"]:
+    # casty numeryczne
+    for c in ["popularity", "vote_average", "vote_count"]:
         if c in df_sel.columns:
             df_sel = df_sel.withColumn(c, F.col(c).cast(DoubleType()))
 
-    # Feature engineering
-    if "release_date" in df_sel.columns:
-        df_sel = df_sel.withColumn(
-            "release_year",
-            F.year(F.to_date("release_date")),
-        )
+    # feature engineering
+    df_sel = df_sel.withColumn("release_year", F.year(F.to_date("release_date")))
+    df_sel = df_sel.withColumn("genre_count", genre_count_udf(F.col("genre_ids")))
 
-    if "budget" in df_sel.columns and "revenue" in df_sel.columns:
-        df_sel = df_sel.withColumn("profit", F.col("revenue") - F.col("budget"))
-        df_sel = df_sel.withColumn(
-            "roi",
-            F.when(F.col("budget") > 0, F.col("profit") / F.col("budget")).otherwise(
-                F.lit(None)
-            ),
-        )
+    # bool cast (czasem inferSchema daje string)
+    df_sel = df_sel.withColumn("adult", F.col("adult").cast(BooleanType()))
+    df_sel = df_sel.withColumn("video", F.col("video").cast(BooleanType()))
 
-    # ====== LABEL (hit/non-hit) ======
-    if "vote_average" not in df_sel.columns:
-        raise RuntimeError("Brak kolumny vote_average – nie mogę zbudować label.")
+    # logi (stabilizacja rozkładów)
+    df_sel = df_sel.withColumn("popularity_log", F.when(F.col("popularity").isNull(), None).otherwise(F.log1p("popularity")))
+    df_sel = df_sel.withColumn("vote_count_log", F.when(F.col("vote_count").isNull(), None).otherwise(F.log1p("vote_count")))
 
+    # label
     df_ml = df_sel.filter(F.col("vote_average").isNotNull())
-    df_ml = df_ml.withColumn(
-        "label",
-        F.when(F.col("vote_average") >= F.lit(7.0), 1.0).otherwise(0.0),
-    )
+    df_ml = df_ml.withColumn("label", F.when(F.col("vote_average") >= F.lit(LABEL_THRESHOLD), 1.0).otherwise(0.0))
 
     train, test = df_ml.randomSplit([0.8, 0.2], seed=42)
 
-    categorical = []
-    if "original_language" in df_ml.columns:
-        categorical.append("original_language")
+    # cechy
+    categorical = ["original_language"] if "original_language" in df_ml.columns else []
 
-    numeric_features = [
-        c
-        for c in [
-            "budget",
-            "revenue",
-            "runtime",
-            "popularity",
-            "vote_count",
-            "release_year",
-            "profit",
-            "roi",
-        ]
-        if c in df_ml.columns
-    ]
+    # adult/video traktujemy jako 0/1
+    df_ml = df_ml.withColumn("adult_num", F.when(F.col("adult") == True, 1.0).otherwise(0.0))
+    df_ml = df_ml.withColumn("video_num", F.when(F.col("video") == True, 1.0).otherwise(0.0))
+    train, test = df_ml.randomSplit([0.8, 0.2], seed=42)
 
-    preprocess_stages = build_preprocess_stages(numeric_features, categorical)
+    numeric = [c for c in ["popularity", "vote_count", "release_year", "genre_count", "popularity_log", "vote_count_log", "adult_num", "video_num"] if c in df_ml.columns]
 
-    # ====== MODELE ======
-    models = [
-        (
-            "LogisticRegression",
-            LogisticRegression(
-                featuresCol="features",
-                labelCol="label",
-                maxIter=100,
-                regParam=0.1,
-                elasticNetParam=0.0,
-            ),
-        ),
-        (
-            "RandomForest",
-            RandomForestClassifier(
-                featuresCol="features",
-                labelCol="label",
-                numTrees=300,
-                maxDepth=10,
-                seed=42,
-            ),
-        ),
-        (
-            "GBTClassifier",
-            GBTClassifier(
-                featuresCol="features",
-                labelCol="label",
-                maxIter=150,
-                maxDepth=5,
-                seed=42,
-            ),
-        ),
-        (
-            "LinearSVC",
-            LinearSVC(
-                featuresCol="features",
-                labelCol="label",
-                maxIter=200,
-                regParam=0.1,
-            ),
-        ),
-    ]
+    # preprocess
+    stages = []
+
+    if numeric:
+        imputer = Imputer(inputCols=numeric, outputCols=[f"{c}_imp" for c in numeric])
+        stages.append(imputer)
+        numeric_imp = [f"{c}_imp" for c in numeric]
+    else:
+        numeric_imp = []
+
+    ohe_out = []
+    for c in categorical:
+        idx = StringIndexer(inputCol=c, outputCol=f"{c}_idx", handleInvalid="keep")
+        ohe = OneHotEncoder(inputCols=[f"{c}_idx"], outputCols=[f"{c}_ohe"])
+        stages += [idx, ohe]
+        ohe_out.append(f"{c}_ohe")
+
+    feature_cols = numeric_imp + ohe_out
+    assembler = VectorAssembler(inputCols=feature_cols, outputCol="features", handleInvalid="keep")
+    stages.append(assembler)
+
+    # ===== baseline =====
+    lr = LogisticRegression(featuresCol="features", labelCol="label", maxIter=50, regParam=0.1, elasticNetParam=0.0)
+    rf = RandomForestClassifier(featuresCol="features", labelCol="label", numTrees=200, maxDepth=10, seed=42)
+    gbt = GBTClassifier(featuresCol="features", labelCol="label", maxIter=100, maxDepth=5, seed=42)
+
+    baseline_models = [("Baseline_LR", lr), ("Baseline_RF", rf), ("Baseline_GBT", gbt)]
 
     results = []
+    fi_path = None
 
-    for name, estimator in models:
-        pipeline = Pipeline(stages=preprocess_stages + [estimator])
-        fitted = pipeline.fit(train)
+    for name, est in baseline_models:
+        pipe = Pipeline(stages=stages + [est])
+        model = pipe.fit(train)
+        preds = model.transform(test)
+        metrics = evaluate_predictions(preds, name)
 
-        # Zapis każdego modelu
-        model_path = os.path.join(MODEL_DIR, f"tmdb_{safe_name(name)}")
-        fitted.write().overwrite().save(model_path)
-        print(f"Saved model {name} to: {model_path}")
+        path = os.path.join(MODEL_DIR, f"tmdb_{safe_name(name)}")
+        model.write().overwrite().save(path)
+        results.append({"model": name, "model_path": path, **metrics})
 
-        # Ewaluacja
-        auc, metrics = evaluate_model(name, fitted, test)
-        results.append(
-            {
-                "model": name,
-                "model_path": model_path,
-                "auc": float(auc) if auc is not None else None,
-                "accuracy": metrics["accuracy"],
-                "precision": metrics["precision"],
-                "recall": metrics["recall"],
-                "f1": metrics["f1"],
-            }
-        )
+    # ===== tuning (CrossValidator) =====
+    evaluator_auc = BinaryClassificationEvaluator(labelCol="label", rawPredictionCol="rawPrediction", metricName="areaUnderROC")
 
-    # Zapis tabeli wyników
+    # LR + PCA (redukcja cech)
+    scaler = StandardScaler(inputCol="features", outputCol="features_scaled", withMean=True, withStd=True)
+    pca = PCA(k=30, inputCol="features_scaled", outputCol="features_pca")
+    lr2 = LogisticRegression(featuresCol="features_pca", labelCol="label")
+
+    lr_tuned_pipe = Pipeline(stages=stages + [scaler, pca, lr2])
+
+    lr_grid = (
+        ParamGridBuilder()
+        .addGrid(lr2.regParam, [0.0, 0.01, 0.1])
+        .addGrid(lr2.elasticNetParam, [0.0, 0.5, 1.0])
+        .addGrid(lr2.maxIter, [50, 100])
+        .build()
+    )
+
+    lr_cv = CrossValidator(
+        estimator=lr_tuned_pipe,
+        estimatorParamMaps=lr_grid,
+        evaluator=evaluator_auc,
+        numFolds=3,
+        parallelism=2,
+        seed=42
+    )
+    lr_cv_model = lr_cv.fit(train)
+    lr_preds = lr_cv_model.transform(test)
+    lr_metrics = evaluate_predictions(lr_preds, "Tuned_LR_PCA")
+
+    lr_path = os.path.join(MODEL_DIR, "tmdb_tuned_lr_pca")
+    lr_cv_model.bestModel.write().overwrite().save(lr_path)
+    results.append({"model": "Tuned_LR_PCA", "model_path": lr_path, **lr_metrics})
+
+    # RF tuning
+    rf2 = RandomForestClassifier(featuresCol="features", labelCol="label", seed=42)
+    rf_pipe = Pipeline(stages=stages + [rf2])
+
+    rf_grid = (
+        ParamGridBuilder()
+        .addGrid(rf2.numTrees, [100, 300])
+        .addGrid(rf2.maxDepth, [8, 12])
+        .addGrid(rf2.maxBins, [32, 64])
+        .build()
+    )
+
+    rf_cv = CrossValidator(
+        estimator=rf_pipe,
+        estimatorParamMaps=rf_grid,
+        evaluator=evaluator_auc,
+        numFolds=3,
+        parallelism=2,
+        seed=42
+    )
+
+    rf_cv_model = rf_cv.fit(train)
+    rf_preds = rf_cv_model.transform(test)
+    rf_metrics = evaluate_predictions(rf_preds, "Tuned_RF")
+
+    rf_path = os.path.join(MODEL_DIR, "tmdb_tuned_rf")
+    rf_cv_model.bestModel.write().overwrite().save(rf_path)
+    results.append({"model": "Tuned_RF", "model_path": rf_path, **rf_metrics})
+
+    # ===== feature importance (z tuned RF) =====
+    best_rf_model = rf_cv_model.bestModel.stages[-1]  # RandomForestClassificationModel
+    importances = best_rf_model.featureImportances
+
+    # uzyskaj metadata nazw cech (próbne transform)
+    tmp = rf_cv_model.bestModel.transform(train.limit(2000))
+    names = get_feature_names(tmp)
+    fi = []
+    for i, v in enumerate(importances):
+        name = names[i] if i < len(names) else f"f_{i}"
+        fi.append((name, float(v)))
+
+    fi_sorted = sorted(fi, key=lambda x: x[1], reverse=True)[:30]
+    fi_path = os.path.join(MODEL_DIR, "feature_importance_top30.csv")
+    pd.DataFrame(fi_sorted, columns=["feature", "importance"]).to_csv(fi_path, index=False)
+    print("Saved feature importance:", fi_path)
+
+    # ===== zapis wyników =====
     results_path = os.path.join(MODEL_DIR, "tmdb_model_results.csv")
     pd.DataFrame(results).to_csv(results_path, index=False)
-    print(f"\nSaved results table to: {results_path}\n")
+    print("Saved results:", results_path)
 
-    # (opcjonalnie) zapis danych po ETL
-    df_sel.write.mode("overwrite").parquet("tmdb_clean.parquet")
-    print("Saved cleaned data to tmdb_clean.parquet")
+    df_sel.write.mode("overwrite").parquet(OUT_CLEAN)
+    print("Saved cleaned data:", OUT_CLEAN)
 
     spark.stop()
 
