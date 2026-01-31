@@ -9,14 +9,13 @@ BOOTSTRAP = "localhost:29092"
 
 TOPIC_IN = "tmdb_features_in"
 TOPIC_OUT = "tmdb_predictions_out"
-TOPIC_METRICS = "tmdb_stream_metrics"  # metryki throughput + latency
+TOPIC_METRICS = "tmdb_stream_metrics"
 
 MODEL_DIR = "models"
 
 CHECKPOINT_OUT = "checkpoints/tmdb_stream_out"
 CHECKPOINT_METRICS = "checkpoints/tmdb_stream_metrics"
 
-# sanity caps (opcjonalne)
 MAX_POPULARITY = 1e7
 MAX_VOTE_COUNT = 1e8
 
@@ -63,10 +62,8 @@ def list_model_paths(model_dir: str) -> List[Tuple[str, str]]:
             items.append((name, path))
 
     if not items:
-        raise RuntimeError(
-            f"Nie znaleziono żadnych modeli w {model_dir}. "
-            f"Oczekuję katalogów np. models/tmdb_baseline_rf"
-        )
+        raise RuntimeError(f"Nie znaleziono żadnych modeli w {model_dir} (tmdb_*)")
+
     return items
 
 
@@ -100,24 +97,37 @@ raw = (
 json_df = raw.select(F.col("value").cast("string").alias("json_str"))
 parsed = json_df.select(F.from_json("json_str", schema).alias("data")).select("data.*")
 
-# event time + watermark (kontrola stanu), cleaning + feature engineering
+# Feature engineering MUST match training pipeline inputs:
 features = (
     parsed
     .withColumn("event_ts", F.to_timestamp("event_time"))
     .withColumn("processed_ts", F.current_timestamp())
+
     .withColumn("original_language", F.coalesce(F.col("original_language"), F.lit("unknown")))
     .withColumn("release_year", F.col("release_year").cast("int"))
     .withColumn("genre_count", F.col("genre_count").cast("int"))
+
+    # bool casts
     .withColumn("adult", F.col("adult").cast("boolean"))
     .withColumn("video", F.col("video").cast("boolean"))
+
+    # IMPORTANT: create adult_num/video_num like in batch training
+    .withColumn("adult_num", F.when(F.col("adult") == True, F.lit(1.0)).otherwise(F.lit(0.0)))
+    .withColumn("video_num", F.when(F.col("video") == True, F.lit(1.0)).otherwise(F.lit(0.0)))
+
+    # clean numeric
     .withColumn("popularity", clamp_nonneg("popularity", MAX_POPULARITY))
     .withColumn("vote_count", clamp_nonneg("vote_count", MAX_VOTE_COUNT))
+
+    # log features
     .withColumn("popularity_log", safe_log1p("popularity"))
     .withColumn("vote_count_log", safe_log1p("vote_count"))
+
+    # state control for aggregations
     .withWatermark("event_ts", "2 minutes")
 )
 
-# predykcje dla wszystkich modeli -> union -> bundle
+# Predict with all models, union, bundle
 pred_dfs = []
 for model_name, m in models:
     p = m.transform(features)
@@ -172,7 +182,7 @@ query_out = (
     .start()
 )
 
-# metryki: throughput + latency p50/p95 w oknie 10s
+# Metrics stream: throughput + latency percentiles (p50/p95) per 10s
 metrics = (
     features
     .groupBy(F.window("processed_ts", "10 seconds").alias("w"))
