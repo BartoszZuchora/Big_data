@@ -1,0 +1,15 @@
+column,dtype,missing_count,missing_rate,nunique,min,max,std,median,mean
+backdrop_path,str,3314,0.3314,6681,,,,,
+overview,str,943,0.0943,9047,,,,,
+poster_path,str,408,0.0408,9586,,,,,
+id,int64,0,0.0,10000,38492.0,1081865.0,117744.61045008812,969581.0,941326.4452
+original_title,str,0,0.0,9932,,,,,
+title,str,0,0.0,9865,,,,,
+popularity,float64,0,0.0,4352,0.6,5470.522,95.6536982168107,1.4264999999999999,11.748981
+genre_ids,str,0,0.0,1193,,,,,
+vote_count,int64,0,0.0,399,0.0,7387.0,240.48198975885873,1.0,31.4494
+release_date,str,0,0.0,365,,,,,
+original_language,str,0,0.0,94,,,,,
+vote_average,float64,0,0.0,81,0.0,10.0,3.3897354510555564,4.5,3.67355
+    adult,bool,0,0.0,1,0.0,0.0,0.0,0.0,0.0
+video,bool,0,0.0,1,0.0,0.0,0.0,0.0,0.0
