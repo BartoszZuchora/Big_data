@@ -16,6 +16,7 @@ MODEL_DIR = "models"
 CHECKPOINT_OUT = "checkpoints/tmdb_stream_out"
 CHECKPOINT_METRICS = "checkpoints/tmdb_stream_metrics"
 
+# sanity caps (opcjonalne)
 MAX_POPULARITY = 1e7
 MAX_VOTE_COUNT = 1e8
 
@@ -39,6 +40,12 @@ schema = T.StructType(
 
 
 def clamp_nonneg(col: str, maxv: float):
+    """
+    - null -> null
+    - <0 -> null
+    - >maxv -> maxv
+    - else -> value
+    """
     return (
         F.when(F.col(col).isNull(), F.lit(None).cast("double"))
         .when(F.col(col) < 0, F.lit(None).cast("double"))
@@ -48,10 +55,15 @@ def clamp_nonneg(col: str, maxv: float):
 
 
 def safe_log1p(col: str):
+    """log1p dla nie-null"""
     return F.when(F.col(col).isNull(), F.lit(None).cast("double")).otherwise(F.log1p(F.col(col)))
 
 
 def list_model_paths(model_dir: str) -> List[Tuple[str, str]]:
+    """
+    Zwraca listę (model_name, model_path) dla podkatalogów w MODEL_DIR.
+    Filtr: katalogi zaczynające się od 'tmdb_'.
+    """
     if not os.path.isdir(model_dir):
         raise RuntimeError(f"MODEL_DIR nie istnieje lub nie jest katalogiem: {model_dir}")
 
@@ -62,7 +74,7 @@ def list_model_paths(model_dir: str) -> List[Tuple[str, str]]:
             items.append((name, path))
 
     if not items:
-        raise RuntimeError(f"Nie znaleziono żadnych modeli w {model_dir} (tmdb_*)")
+        raise RuntimeError(f"Nie znaleziono żadnych modeli w {model_dir} (oczekuję tmdb_*)")
 
     return items
 
@@ -74,6 +86,9 @@ def load_models(model_dir: str) -> List[Tuple[str, PipelineModel]]:
     return models
 
 
+# ==========================
+# Spark init
+# ==========================
 spark = SparkSession.builder.appName("TMDB-Streaming-Predict-AllModels").getOrCreate()
 spark.sparkContext.setLogLevel("WARN")
 
@@ -85,6 +100,9 @@ print("Loaded models:")
 for n, _ in models:
     print(" -", n)
 
+# ==========================
+# Kafka -> parse JSON
+# ==========================
 raw = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", BOOTSTRAP)
@@ -97,7 +115,9 @@ raw = (
 json_df = raw.select(F.col("value").cast("string").alias("json_str"))
 parsed = json_df.select(F.from_json("json_str", schema).alias("data")).select("data.*")
 
-# Feature engineering MUST match training pipeline inputs:
+# ==========================
+# Feature engineering (MUST match batch training inputs)
+# ==========================
 features = (
     parsed
     .withColumn("event_ts", F.to_timestamp("event_time"))
@@ -107,31 +127,37 @@ features = (
     .withColumn("release_year", F.col("release_year").cast("int"))
     .withColumn("genre_count", F.col("genre_count").cast("int"))
 
-    # bool casts
     .withColumn("adult", F.col("adult").cast("boolean"))
     .withColumn("video", F.col("video").cast("boolean"))
 
-    # IMPORTANT: create adult_num/video_num like in batch training
+    # IMPORTANT: these exist in batch training
     .withColumn("adult_num", F.when(F.col("adult") == True, F.lit(1.0)).otherwise(F.lit(0.0)))
     .withColumn("video_num", F.when(F.col("video") == True, F.lit(1.0)).otherwise(F.lit(0.0)))
 
-    # clean numeric
     .withColumn("popularity", clamp_nonneg("popularity", MAX_POPULARITY))
     .withColumn("vote_count", clamp_nonneg("vote_count", MAX_VOTE_COUNT))
 
-    # log features
     .withColumn("popularity_log", safe_log1p("popularity"))
     .withColumn("vote_count_log", safe_log1p("vote_count"))
 
-    # state control for aggregations
+    # kontrola stanu (watermark)
     .withWatermark("event_ts", "2 minutes")
 )
 
-# Predict with all models, union, bundle
+# latency kolumna do percentyli (bez SQL expr)
+features_with_latency = features.withColumn(
+    "latency_ms_calc",
+    (F.col("processed_ts").cast("long") - F.col("event_ts").cast("long")) * F.lit(1000)
+)
+
+# ==========================
+# Predict with all models -> union -> bundle
+# ==========================
 pred_dfs = []
 for model_name, m in models:
-    p = m.transform(features)
+    p = m.transform(features_with_latency)
 
+    # probability -> score (P(class=1))
     score_col = F.lit(None).cast("double").alias("score")
     if "probability" in p.columns:
         score_col = vector_to_array(F.col("probability")).getItem(1).cast("double").alias("score")
@@ -141,12 +167,13 @@ for model_name, m in models:
             "id",
             "event_ts",
             "processed_ts",
+            "latency_ms_calc",
             F.lit(model_name).alias("model"),
             F.col("prediction").cast("int").alias("prediction"),
             score_col,
         )
         .withColumn("pred_struct", F.struct("model", "prediction", "score"))
-        .select("id", "event_ts", "processed_ts", "pred_struct")
+        .select("id", "event_ts", "processed_ts", "latency_ms_calc", "pred_struct")
     )
     pred_dfs.append(one)
 
@@ -154,11 +181,14 @@ union_preds = pred_dfs[0]
 for d in pred_dfs[1:]:
     union_preds = union_preds.unionByName(d)
 
+# bundle predictions per (id,event_ts,processed_ts) to one JSON
 bundled = (
     union_preds
     .groupBy("id", "event_ts", "processed_ts")
-    .agg(F.collect_list("pred_struct").alias("predictions"))
-    .withColumn("latency_ms", (F.col("processed_ts").cast("long") - F.col("event_ts").cast("long")) * 1000)
+    .agg(
+        F.collect_list("pred_struct").alias("predictions"),
+        F.max("latency_ms_calc").alias("latency_ms")  # jedna wartość
+    )
     .select(
         F.to_json(
             F.struct(
@@ -182,14 +212,16 @@ query_out = (
     .start()
 )
 
-# Metrics stream: throughput + latency percentiles (p50/p95) per 10s
+# ==========================
+# Metrics: throughput + p50/p95 latency per 10s window
+# ==========================
 metrics = (
-    features
+    features_with_latency
     .groupBy(F.window("processed_ts", "10 seconds").alias("w"))
     .agg(
         F.count("*").alias("records"),
-        F.expr("percentile_approx((processed_ts.cast('long')-event_ts.cast('long'))*1000, 0.5)").alias("p50_latency_ms"),
-        F.expr("percentile_approx((processed_ts.cast('long')-event_ts.cast('long'))*1000, 0.95)").alias("p95_latency_ms"),
+        F.percentile_approx(F.col("latency_ms_calc"), F.lit(0.5), F.lit(10000)).alias("p50_latency_ms"),
+        F.percentile_approx(F.col("latency_ms_calc"), F.lit(0.95), F.lit(10000)).alias("p95_latency_ms"),
     )
     .select(
         F.to_json(
