@@ -4,12 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="44689204-2508-4b01-99d3-73e4ba4fe8c2" name="Changes" comment="update gitignore">
-      <change afterPath="$PROJECT_DIR$/eda_tmdb_rf.ipynb" afterDir="false" />
+    <list default="true" id="44689204-2508-4b01-99d3-73e4ba4fe8c2" name="Changes" comment="update">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dataset_analysis.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/dataset_analysis.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataset_analysis.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataset_analysis.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/eda_tmdb_gbt.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/eda_tmdb_gbt.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eda_tmdb_rf.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/eda_tmdb_rf.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/feature_importance_top30.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tmdb_spark_ml.py" beforeDir="false" afterPath="$PROJECT_DIR$/tmdb_spark_ml.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -116,6 +117,8 @@
       <workItem from="1768598875937" duration="286000" />
       <workItem from="1768603019875" duration="4476000" />
       <workItem from="1768735520418" duration="4655000" />
+      <workItem from="1769944541957" duration="7325000" />
+      <workItem from="1769972991483" duration="153000" />
     </task>
     <servers />
   </component>
@@ -147,7 +150,19 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="update gitignore" />
-    <option name="LAST_COMMIT_MESSAGE" value="update gitignore" />
+    <MESSAGE value="update" />
+    <option name="LAST_COMMIT_MESSAGE" value="update" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/tmdb_spark_ml.py</url>
+          <line>33</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/Big_data$clean.coverage" NAME="clean Coverage Results" MODIFIED="1768739345293" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />

@@ -224,7 +224,6 @@ def main():
         .build()
     )
 
-    # parallelism=1 -> stabilniej na macOS (mniej problemów z multiprocess)
     lr_cv = CrossValidator(
         estimator=lr_pipe,
         estimatorParamMaps=lr_grid,
