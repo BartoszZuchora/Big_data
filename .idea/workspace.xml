@@ -9,8 +9,6 @@
       <change beforePath="$PROJECT_DIR$/dataset_analysis.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/dataset_analysis.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/eda_tmdb_gbt.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/eda_tmdb_gbt.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/eda_tmdb_rf.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/eda_tmdb_rf.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/feature_importance_top30.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tmdb_spark_ml.py" beforeDir="false" afterPath="$PROJECT_DIR$/tmdb_spark_ml.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -119,7 +117,18 @@
       <workItem from="1768735520418" duration="4655000" />
       <workItem from="1769944541957" duration="7325000" />
       <workItem from="1769972991483" duration="153000" />
+      <workItem from="1769979608589" duration="3326000" />
+      <workItem from="1769982954481" duration="310000" />
     </task>
+    <task id="LOCAL-00001" summary="update">
+      <option name="closed" value="true" />
+      <created>1769979640787</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1769979640787</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
