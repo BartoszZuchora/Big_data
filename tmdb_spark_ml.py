@@ -18,9 +18,8 @@ INPUT_CSV = "data/tmdb_10000_movies.csv"
 MODEL_DIR = "models"
 OUT_CLEAN = "tmdb_clean.parquet"
 
-LABEL_THRESHOLD = 7.0  # hit jeśli vote_average >= 7.0
+LABEL_THRESHOLD = 7.0
 
-# ile cech zostawiamy po redukcji
 TOP_N_FEATURES = 30
 
 
@@ -50,12 +49,10 @@ def genre_count_udf(s):
 
 
 def evaluate_predictions(preds, name: str):
-    # confusion matrix
     cm = preds.groupBy("label", "prediction").count().orderBy("label", "prediction")
     print(f"\n[{name}] Confusion matrix (label, prediction, count):")
     cm.show(truncate=False)
 
-    # metryki klasyfikacyjne
     acc_eval = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
     f1_eval = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="f1")
     pr_eval = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
@@ -66,7 +63,6 @@ def evaluate_predictions(preds, name: str):
     precision = pr_eval.evaluate(preds)
     recall = rc_eval.evaluate(preds)
 
-    # AUC (jeśli model daje rawPrediction)
     auc = None
     try:
         auc_eval = BinaryClassificationEvaluator(
@@ -84,9 +80,6 @@ def evaluate_predictions(preds, name: str):
 
 
 def get_feature_names_from_metadata(df_with_features, feature_col="features"):
-    """
-    Wyciąga nazwy cech z metadanych Spark ML (najlepsze dla OHE + assembler).
-    """
     try:
         md = df_with_features.schema[feature_col].metadata
         attrs = md["ml_attr"]["attrs"]
@@ -124,20 +117,16 @@ def main():
     cols = [c for c in cols if c in df.columns]
     df_sel = df.select(*cols)
 
-    # casty numeryczne
     for c in ["popularity", "vote_average", "vote_count"]:
         if c in df_sel.columns:
             df_sel = df_sel.withColumn(c, F.col(c).cast(DoubleType()))
 
-    # feature engineering
     df_sel = df_sel.withColumn("release_year", F.year(F.to_date("release_date")))
     df_sel = df_sel.withColumn("genre_count", genre_count_udf(F.col("genre_ids")))
 
-    # bool cast (czasem inferSchema daje string)
     df_sel = df_sel.withColumn("adult", F.col("adult").cast(BooleanType()))
     df_sel = df_sel.withColumn("video", F.col("video").cast(BooleanType()))
 
-    # logi (stabilizacja rozkładów)
     df_sel = df_sel.withColumn(
         "popularity_log",
         F.when(F.col("popularity").isNull(), None).otherwise(F.log1p("popularity"))
@@ -147,17 +136,14 @@ def main():
         F.when(F.col("vote_count").isNull(), None).otherwise(F.log1p("vote_count"))
     )
 
-    # label
     df_ml = df_sel.filter(F.col("vote_average").isNotNull())
     df_ml = df_ml.withColumn("label", F.when(F.col("vote_average") >= F.lit(LABEL_THRESHOLD), 1.0).otherwise(0.0))
 
-    # adult/video jako 0/1
     df_ml = df_ml.withColumn("adult_num", F.when(F.col("adult") == True, 1.0).otherwise(0.0))
     df_ml = df_ml.withColumn("video_num", F.when(F.col("video") == True, 1.0).otherwise(0.0))
 
     train, test = df_ml.randomSplit([0.8, 0.2], seed=42)
 
-    # cechy
     categorical = ["original_language"] if "original_language" in df_ml.columns else []
     numeric = [
         c for c in [
@@ -167,10 +153,8 @@ def main():
         ] if c in df_ml.columns
     ]
 
-    # preprocess
     stages = []
 
-    # Imputer dla numerycznych (zapobiega nullom -> problemy w ML)
     imputer = Imputer(inputCols=numeric, outputCols=[f"{c}_imp" for c in numeric])
     stages.append(imputer)
     numeric_imp = [f"{c}_imp" for c in numeric]
@@ -186,7 +170,6 @@ def main():
     assembler = VectorAssembler(inputCols=feature_cols, outputCol="features", handleInvalid="keep")
     stages.append(assembler)
 
-    # ===== baseline =====
     lr = LogisticRegression(featuresCol="features", labelCol="label", maxIter=50, regParam=0.1, elasticNetParam=0.0)
     rf = RandomForestClassifier(featuresCol="features", labelCol="label", numTrees=200, maxDepth=10, seed=42)
     gbt = GBTClassifier(featuresCol="features", labelCol="label", maxIter=100, maxDepth=5, seed=42)
@@ -205,14 +188,12 @@ def main():
         model.write().overwrite().save(path)
         results.append({"model": name, "model_path": path, **metrics})
 
-    # ===== tuning: LR (bez PCA) + RF =====
     evaluator_auc = BinaryClassificationEvaluator(
         labelCol="label",
         rawPredictionCol="rawPrediction",
         metricName="areaUnderROC"
     )
 
-    # --- LR tuning ---
     lr2 = LogisticRegression(featuresCol="features", labelCol="label")
 
     lr_pipe = Pipeline(stages=stages + [lr2])
@@ -241,7 +222,6 @@ def main():
     lr_cv_model.bestModel.write().overwrite().save(lr_path)
     results.append({"model": "Tuned_LR", "model_path": lr_path, **lr_metrics})
 
-    # --- RF tuning ---
     rf2 = RandomForestClassifier(featuresCol="features", labelCol="label", seed=42)
     rf_pipe = Pipeline(stages=stages + [rf2])
 
@@ -270,18 +250,16 @@ def main():
     rf_cv_model.bestModel.write().overwrite().save(rf_path)
     results.append({"model": "Tuned_RF", "model_path": rf_path, **rf_metrics})
 
-    # ===== feature importance + redukcja cech =====
-    best_rf_model = rf_cv_model.bestModel.stages[-1]  # RandomForestClassificationModel
+    best_rf_model = rf_cv_model.bestModel.stages[-1]
     importances = best_rf_model.featureImportances
 
-    # żeby dostać nazwy: transform mały sample
     tmp = rf_cv_model.bestModel.transform(train.limit(2000))
     feature_names = get_feature_names_from_metadata(tmp, feature_col="features")
 
     fi = []
     for i, v in enumerate(importances):
         fname = feature_names[i] if i < len(feature_names) else f"f_{i}"
-        fi.append((fname, float(v), i))  # (name, importance, index)
+        fi.append((fname, float(v), i))
 
     fi_sorted = sorted(fi, key=lambda x: x[1], reverse=True)
     top = fi_sorted[:TOP_N_FEATURES]
@@ -290,7 +268,6 @@ def main():
     pd.DataFrame([(n, imp) for n, imp, _ in top], columns=["feature", "importance"]).to_csv(fi_path, index=False)
     print("Saved feature importance:", fi_path)
 
-    # --- redukcja cech: wybieramy TOP_N_FEATURES indeksów i trenujemy LR na features_reduced ---
     top_indices = [idx for _, _, idx in top]
 
     slicer = VectorSlicer(inputCol="features", outputCol="features_reduced", indices=top_indices)
@@ -305,7 +282,6 @@ def main():
     reduced_model.write().overwrite().save(red_path)
     results.append({"model": f"LR_ReducedTop{TOP_N_FEATURES}", "model_path": red_path, **reduced_metrics})
 
-    # ===== zapis wyników =====
     results_path = os.path.join(MODEL_DIR, "tmdb_model_results.csv")
     pd.DataFrame(results).to_csv(results_path, index=False)
     print("Saved results:", results_path)

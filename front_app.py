@@ -73,7 +73,6 @@ def parse_release_year(release_date: str):
 
 
 def parse_genre_count(genre_ids_str: str):
-    # genre_ids w CSV wygląda np. "[28, 12, 878]"
     if not genre_ids_str:
         return None
     try:
@@ -99,11 +98,9 @@ def pick_random_record(rows):
         "id": request_id,
         "event_time": now_iso_utc(),
 
-        # meta (dla debug/raportu)
         "tmdb_id": row.get("id"),
         "title": row.get("title"),
 
-        # features zgodne ze streaming schema i batch ML
         "popularity": to_float(row.get("popularity")),
         "vote_count": to_float(row.get("vote_count")),
         "release_year": parse_release_year(row.get("release_date")),
